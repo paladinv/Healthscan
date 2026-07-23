@@ -1,7 +1,6 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import jsPDF from "jspdf";
-import QRCode from "qrcode";
+import * as scanAnalysis from "./analysis.js";
 
 // ─── COLOR SCIENCE: Blood Detection Ranges ───────────────────────────────────
 // Blood in urine/stool appears across a spectrum:
@@ -45,6 +44,7 @@ const MIN_URINE_RATIO = 0.02;
 const MIN_STOOL_RATIO = 0.02;
 const FINDING_CROP_PAD_RATIO = 0.32;
 const FINDING_CROP_MIN_PAD = 14;
+const HISTORY_STORAGE_KEY = "healthscan-summary-history-v1";
 
 function isInBowlMask(x, y, width, height) {
   const cx = width * BOWL_MASK.centerX;
@@ -235,9 +235,9 @@ function analyzeImageData(imageData, width, height) {
 
 // ─── SEVERITY LEGEND INFO ─────────────────────────────────────────────────────
 const SEVERITY_INFO = {
-  urgent: { icon: "🔴", title: "Urgent", desc: "Bright or dark red blood may indicate bleeding in the urinary or lower digestive tract. Consult a doctor promptly." },
-  warning: { icon: "🟠", title: "Warning", desc: "Maroon or brown coloring may indicate blood that has been partially digested, possibly from the upper GI tract." },
-  caution: { icon: "⚫", title: "Caution", desc: "Very dark or tarry (black) stool may indicate upper GI bleeding (melena). Medical evaluation is recommended." },
+  urgent: { icon: "🔴", title: "Prompt medical review", desc: "This color pattern can be associated with blood-like changes in urine or stool. Arrange medical advice promptly." },
+  warning: { icon: "🟠", title: "Medical review recommended", desc: "This color pattern may be associated with older or digested blood-like changes. A healthcare professional should assess it." },
+  caution: { icon: "⚫", title: "Needs medical attention", desc: "Very dark or tarry-looking stool can be a warning sign. Seek medical advice, especially if this is new or accompanied by symptoms." },
 };
 
 // ─── COMPONENT ────────────────────────────────────────────────────────────────
@@ -247,13 +247,32 @@ export default function HealthScanApp() {
   const [detections, setDetections] = useState([]);
   const [bloodStats, setBloodStats] = useState({ pixels: 0, ratio: 0 });
   const [sampleType, setSampleType] = useState("unknown");
+  const [sampleTypeOverride, setSampleTypeOverride] = useState(null);
   const [findingCrops, setFindingCrops] = useState([]);
   const [qrDataUrl, setQrDataUrl] = useState(null);
   const [toast, setToast] = useState(null);
+  const [scanQuality, setScanQuality] = useState({ status: "unknown", reasons: [] });
+  const [analysisError, setAnalysisError] = useState(null);
+  const [scanTimestamp, setScanTimestamp] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [historyEnabled, setHistoryEnabled] = useState(() => {
+    try { return window.localStorage.getItem(`${HISTORY_STORAGE_KEY}:enabled`) === "1"; }
+    catch { return false; }
+  });
+  const [historyRecords, setHistoryRecords] = useState(() => {
+    try {
+      if (window.localStorage.getItem(`${HISTORY_STORAGE_KEY}:enabled`) !== "1") return [];
+      const stored = window.localStorage.getItem(HISTORY_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
   const [lightingStatus, setLightingStatus] = useState(null); // { status: "dim"|"ok"|"bright", value }
+  const [cameraError, setCameraError] = useState(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const overlayCanvasRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const screenRef = useRef(null);
   const scratchCanvasRef = useRef(null); // off-screen canvas for brightness sampling
   const streamRef = useRef(null);
   const lightingIntervalRef = useRef(null);
@@ -261,6 +280,14 @@ export default function HealthScanApp() {
 
   // ── Start camera ──
   const startCamera = useCallback(async ({ quiet = false } = {}) => {
+    setCameraError(null);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      const message = "Camera access is not available in this browser. You can scan a photo instead.";
+      setCameraError(message);
+      setToast(message);
+      setPhase("home");
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 960 } }
@@ -277,10 +304,15 @@ export default function HealthScanApp() {
       setPhase("camera");
     } catch (e) {
       if (quiet) {
-        setToast("Tap Start Scan to enable the camera.");
+        const message = "Camera access is unavailable. You can scan a photo instead.";
+        setCameraError(message);
+        setToast(message);
         setPhase("home");
       } else {
-        alert("Camera access denied or unavailable. Please enable camera permissions.");
+        const message = "Camera access was denied or is unavailable. Enable permission or use a photo instead.";
+        setCameraError(message);
+        setToast(message);
+        setPhase("home");
       }
     }
   }, []);
@@ -299,14 +331,38 @@ export default function HealthScanApp() {
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
     const w = video.videoWidth, h = video.videoHeight;
+    if (!w || !h) {
+      setToast("The camera is not ready yet. Try again in a moment.");
+      return;
+    }
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext("2d");
     ctx.drawImage(video, 0, 0, w, h);
     const url = canvas.toDataURL("image/jpeg", 0.92);
     setImageUrl(url);
+    setScanTimestamp(new Date().toISOString());
     stopCamera();
     setPhase("scanning");
   }, [stopCamera]);
+
+  const handleFileSelect = useCallback((event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setToast("Please choose an image file.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAnalysisError(null);
+      setScanTimestamp(new Date().toISOString());
+      setImageUrl(reader.result);
+      setPhase("scanning");
+    };
+    reader.onerror = () => setToast("That image could not be opened. Try another photo.");
+    reader.readAsDataURL(file);
+  }, []);
 
   // ── Poll lighting while camera is live ──
   useEffect(() => {
@@ -334,7 +390,7 @@ export default function HealthScanApp() {
     if (phase !== "scanning" || !imageUrl) return;
     const img = new Image();
     let cancelled = false;
-    let timeoutId = null;
+    let worker = null;
     img.onload = () => {
       if (cancelled) return;
       const canvas = canvasRef.current;
@@ -342,21 +398,59 @@ export default function HealthScanApp() {
       canvas.width = img.width; canvas.height = img.height;
       const ctx = canvas.getContext("2d");
       ctx.drawImage(img, 0, 0);
-      const imageData = ctx.getImageData(0, 0, img.width, img.height);
-      // Simulate brief scanning delay for UX
-      timeoutId = setTimeout(() => {
+      const maxDimension = 960;
+      const scale = Math.min(1, maxDimension / Math.max(img.width, img.height));
+      const analysisWidth = Math.max(1, Math.round(img.width * scale));
+      const analysisHeight = Math.max(1, Math.round(img.height * scale));
+      canvas.width = analysisWidth;
+      canvas.height = analysisHeight;
+      ctx.drawImage(img, 0, 0, analysisWidth, analysisHeight);
+      const imageData = ctx.getImageData(0, 0, analysisWidth, analysisHeight);
+      const handleResult = (results) => {
         if (cancelled) return;
-        const results = analyzeImageData(imageData, img.width, img.height);
-        setDetections(results.detections);
+        const scaleX = img.width / analysisWidth;
+        const scaleY = img.height / analysisHeight;
+        const scaledDetections = results.detections.map((box) => ({
+          ...box,
+          x: box.x * scaleX,
+          y: box.y * scaleY,
+          w: box.w * scaleX,
+          h: box.h * scaleY,
+        }));
+        setDetections(scaledDetections);
         setBloodStats({ pixels: results.bloodPixels, ratio: results.bloodRatio });
         setSampleType(results.sampleType);
+        setSampleTypeOverride(null);
+        setScanQuality(results.quality);
+        setAnalysisError(null);
         setPhase("results");
-      }, 1400);
+      };
+      if (typeof Worker === "undefined") {
+        handleResult(scanAnalysis.analyzeImageData(imageData, analysisWidth, analysisHeight));
+        return;
+      }
+      worker = new Worker(new URL("./analysis.worker.js", import.meta.url), { type: "module" });
+      worker.onmessage = (event) => {
+        worker.terminate();
+        if (event.data.ok) handleResult(event.data.result);
+        else {
+          setAnalysisError("The scan could not be analyzed. Please try another image.");
+          setPhase("results");
+        }
+      };
+      worker.onerror = () => {
+        worker.terminate();
+        if (!cancelled) {
+          setAnalysisError("The scan could not be analyzed. Please try another image.");
+          setPhase("results");
+        }
+      };
+      worker.postMessage({ imageData, width: analysisWidth, height: analysisHeight }, [imageData.data.buffer]);
     };
     img.src = imageUrl;
     return () => {
       cancelled = true;
-      if (timeoutId) clearTimeout(timeoutId);
+      worker?.terminate();
     };
   }, [phase, imageUrl]);
 
@@ -419,14 +513,31 @@ export default function HealthScanApp() {
     setDetections([]);
     setBloodStats({ pixels: 0, ratio: 0 });
     setSampleType("unknown");
+    setSampleTypeOverride(null);
     setFindingCrops([]);
     setQrDataUrl(null);
     setToast(null);
+    setScanQuality({ status: "unknown", reasons: [] });
+    setAnalysisError(null);
+    setScanTimestamp(null);
+    setCameraError(null);
     setPhase("home");
   };
 
+  const retake = useCallback(() => {
+    setImageUrl(null);
+    setDetections([]);
+    setScanQuality({ status: "unknown", reasons: [] });
+    setAnalysisError(null);
+    startCamera();
+  }, [startCamera]);
+
   // ── Cleanup on unmount / phase change ──
   useEffect(() => { return () => stopCamera(); }, [stopCamera]);
+
+  useEffect(() => {
+    if (phase !== "home") window.requestAnimationFrame(() => screenRef.current?.focus());
+  }, [phase]);
 
   // ── Toast auto-dismiss ──
   useEffect(() => {
@@ -490,13 +601,41 @@ export default function HealthScanApp() {
   useEffect(() => {
     if (phase !== "results") return;
     const value = `${window.location.origin}${window.location.pathname}`;
-    QRCode.toDataURL(value, {
+    let cancelled = false;
+    import("qrcode").then(({ default: QRCode }) => QRCode.toDataURL(value, {
       errorCorrectionLevel: "H",
       width: 180,
       margin: 1,
       color: { dark: "#0f172a", light: "#ffffff" },
-    }).then(setQrDataUrl).catch(() => setQrDataUrl(null));
+    })).then((dataUrl) => { if (!cancelled) setQrDataUrl(dataUrl); }).catch(() => setQrDataUrl(null));
+    return () => { cancelled = true; };
   }, [phase]);
+
+  // Persist summaries only when the user explicitly opts in. Images never enter
+  // localStorage; users can clear this history independently of scan exports.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(`${HISTORY_STORAGE_KEY}:enabled`, historyEnabled ? "1" : "0");
+      if (historyEnabled) window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(historyRecords));
+    } catch {
+      setToast("This browser blocked local history storage.");
+    }
+  }, [historyEnabled, historyRecords]);
+
+  useEffect(() => {
+    if (phase !== "results" || !historyEnabled || !scanTimestamp) return;
+    const severity = detections.some((item) => item.severity === "urgent")
+      ? "urgent" : detections.some((item) => item.severity === "warning") ? "warning" : detections.length ? "caution" : null;
+    const record = {
+      id: scanTimestamp,
+      timestamp: scanTimestamp,
+      status: analysisError ? "unavailable" : scanQuality.status === "inconclusive" ? "inconclusive" : detections.length ? "markers" : "clear",
+      severity,
+      detectionLabels: detections.map((item) => item.label),
+      sampleType: sampleTypeOverride || sampleType,
+    };
+    setHistoryRecords((current) => [record, ...current.filter((item) => item.id !== record.id)].slice(0, 20));
+  }, [analysisError, detections, historyEnabled, phase, sampleType, sampleTypeOverride, scanQuality, scanTimestamp]);
 
   const saveImage = useCallback(() => {
     const canvas = overlayCanvasRef.current;
@@ -505,11 +644,42 @@ export default function HealthScanApp() {
     link.download = "healthscan-scan.png";
     link.href = canvas.toDataURL("image/png");
     link.click();
+    setToast("Scan image saved to this device.");
   }, []);
+
+  const shareScan = useCallback(async () => {
+    const canvas = overlayCanvasRef.current;
+    if (!canvas) return;
+    if (!navigator.share || !canvas.toBlob) {
+      saveImage();
+      return;
+    }
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      const file = new File([blob], "healthscan-scan.png", { type: "image/png" });
+      try {
+        if (navigator.canShare && !navigator.canShare({ files: [file] })) {
+          saveImage();
+          return;
+        }
+        await navigator.share({ title: "HealthScan scan", text: "HealthScan scan image", files: [file] });
+      } catch (error) {
+        if (error?.name !== "AbortError") setToast("Sharing was unavailable. The image was not uploaded.");
+      }
+    }, "image/png");
+  }, [saveImage]);
+
+  // Highest severity found
+  const highestSeverity = detections.length
+    ? (detections.some(d => d.severity === "urgent") ? "urgent" : detections.some(d => d.severity === "warning") ? "warning" : "caution")
+    : null;
 
   const exportScanResults = useCallback(async () => {
     const canvas = overlayCanvasRef.current;
     if (!canvas) return;
+    setIsExporting(true);
+    try {
+      const [{ default: jsPDF }, { default: QRCode }] = await Promise.all([import("jspdf"), import("qrcode")]);
     const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = pdf.internal.pageSize.getHeight();
@@ -535,7 +705,9 @@ export default function HealthScanApp() {
 
     // Summary badge
     const severity = highestSeverity || "caution";
-    const severityColor = detections.length === 0
+    const severityColor = scanQuality.status === "inconclusive" || analysisError
+      ? [245, 158, 11]
+      : detections.length === 0
       ? [34, 197, 94]
       : severity === "urgent" ? [239, 68, 68] : severity === "warning" ? [245, 158, 11] : [148, 163, 184];
     pdf.setFillColor(30, 41, 59);
@@ -543,8 +715,12 @@ export default function HealthScanApp() {
     pdf.roundedRect(margin, y, contentW, 36, 8, 8, "FD");
     pdf.setTextColor(226, 232, 240);
     pdf.setFontSize(12);
-    const summaryLabel = detections.length === 0
-      ? "No blood detected"
+    const summaryLabel = analysisError
+      ? "Scan unavailable"
+      : scanQuality.status === "inconclusive"
+      ? "Inconclusive scan"
+      : detections.length === 0
+      ? "No blood-like markers detected"
       : `${SEVERITY_INFO[severity].title} — ${detections.length} detection${detections.length === 1 ? "" : "s"}`;
     pdf.text(summaryLabel, margin + 12, y + 22);
     y += 52;
@@ -552,7 +728,8 @@ export default function HealthScanApp() {
     // Sample type
     pdf.setTextColor(148, 163, 184);
     pdf.setFontSize(11);
-    const sampleLabel = sampleType === "both" ? "Urine + Stool" : sampleType === "urine" ? "Urine" : sampleType === "stool" ? "Stool" : "Unknown";
+    const effectiveSampleType = sampleTypeOverride || sampleType;
+    const sampleLabel = effectiveSampleType === "both" ? "Urine + Stool" : effectiveSampleType === "urine" ? "Urine" : effectiveSampleType === "stool" ? "Stool" : "Unknown";
     pdf.text(`Sample type: ${sampleLabel}`, margin, y);
     y += 20;
 
@@ -598,8 +775,12 @@ export default function HealthScanApp() {
     pdf.text("What this may indicate", margin + 12, y + 22);
     pdf.setTextColor(148, 163, 184);
     pdf.setFontSize(10);
-    const noteText = detections.length === 0
-      ? "No blood markers were detected in the scan. Continue monitoring regularly."
+    const noteText = analysisError
+      ? analysisError
+      : scanQuality.status === "inconclusive"
+      ? `This scan could not be interpreted reliably. ${scanQuality.reasons.join(" ")}`
+      : detections.length === 0
+      ? "No blood-like color markers were detected. This does not rule out blood or a medical condition."
       : SEVERITY_INFO[severity].desc;
     const noteLines = pdf.splitTextToSize(noteText, contentW - 24);
     pdf.text(noteLines, margin + 12, y + 38);
@@ -624,7 +805,13 @@ export default function HealthScanApp() {
     pdf.text("Scan to open HealthScan", pageW - margin - 120, y + 104);
 
     pdf.save("healthscan-scan-results.pdf");
-  }, [detections, highestSeverity, sampleType]);
+    setToast("PDF saved to this device.");
+    } catch (error) {
+      setToast("The PDF could not be created. Try saving the image instead.");
+    } finally {
+      setIsExporting(false);
+    }
+  }, [analysisError, detections, highestSeverity, sampleType, sampleTypeOverride, scanQuality]);
 
   function hexToRgb(hex) {
     const raw = hex.replace("#", "");
@@ -633,11 +820,6 @@ export default function HealthScanApp() {
     return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
   }
 
-  // Highest severity found
-  const highestSeverity = detections.length
-    ? (detections.some(d => d.severity === "urgent") ? "urgent" : detections.some(d => d.severity === "warning") ? "warning" : "caution")
-    : null;
-
   const scanShortcutUrl = `${window.location.origin}${window.location.pathname}?scan=1`;
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -645,12 +827,21 @@ export default function HealthScanApp() {
   // ────────────────────────────────────────────────────────────────────────────
 
   return (
-    <div style={styles.root}>
+    <div ref={screenRef} style={styles.root} tabIndex={-1}>
       {/* Hidden canvas for processing */}
       <canvas ref={canvasRef} style={{ display: "none" }} />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleFileSelect}
+        style={{ display: "none" }}
+        aria-label="Choose a scan photo"
+      />
 
       {/* Toast */}
-      {toast && <div style={styles.toast}>{toast}</div>}
+      {toast && <div style={styles.toast} role="status" aria-live="polite">{toast}</div>}
 
       {/* ── HOME ── */}
       {phase === "home" && (
@@ -666,18 +857,61 @@ export default function HealthScanApp() {
           <p style={styles.homeSub}>Toilet health monitoring via blood detection in urine & stool</p>
           <div style={styles.infoCard}>
             <p style={styles.infoText}>
-              This app scans for signs of blood — ranging from <span style={{ color: "#ef4444" }}>bright red</span> to <span style={{ color: "#9ca3af" }}>black</span> — which may indicate urinary or colorectal conditions.
+              This app screens for <strong>blood-like color markers</strong> — ranging from <span style={{ color: "#ef4444" }}>bright red</span> to <span style={{ color: "#9ca3af" }}>black</span> — in urine or stool.
             </p>
             <p style={{ ...styles.infoText, marginTop: 8, fontSize: 12, color: "#6b7280" }}>
-              ⚕️ This is a screening aid only. Always consult a healthcare professional for diagnosis.
+              ⚕️ It cannot confirm blood or diagnose a condition. If you feel faint, have severe pain, see clots, vomit blood, or notice black/tarry stool, seek urgent medical care.
             </p>
           </div>
+          {cameraError && <div style={styles.errorCard} role="alert">{cameraError}</div>}
           <button style={styles.primaryBtn} onClick={startCamera}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8 }}>
               <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
             </svg>
             Start Scan
           </button>
+          <button style={styles.secondaryBtn} onClick={() => fileInputRef.current?.click()}>
+            Use a photo instead
+          </button>
+
+          <details style={styles.privacyDetails}>
+            <summary style={styles.privacySummary}>Privacy & limitations</summary>
+            <p style={styles.privacyText}>Photos are analyzed in your browser by this app and are not uploaded by HealthScan. Saving, exporting, or sharing a scan sends it to the destination you choose. The QR code opens the app only; it does not contain your scan.</p>
+            <p style={styles.privacyText}>This is a screening aid, not a medical device or diagnosis. Delete downloaded files separately from your device.</p>
+          </details>
+
+          <details style={styles.privacyDetails}>
+            <summary style={styles.privacySummary}>Optional on-device history{historyRecords.length ? ` (${historyRecords.length})` : ""}</summary>
+            <label style={styles.historyToggle}>
+              <input
+                type="checkbox"
+                checked={historyEnabled}
+                onChange={(event) => {
+                  const enabled = event.target.checked;
+                  setHistoryEnabled(enabled);
+                  if (!enabled) {
+                    setHistoryRecords([]);
+                    try { window.localStorage.removeItem(HISTORY_STORAGE_KEY); } catch {}
+                  }
+                }}
+              />
+              Save summary-only history on this device
+            </label>
+            <p style={styles.privacyText}>Only dates, sample type, and marker summaries are saved. Raw scan images are never stored in history.</p>
+            {historyRecords.length > 0 && (
+              <>
+                <div style={styles.historyList}>
+                  {historyRecords.slice(0, 5).map((record) => (
+                    <div key={record.id} style={styles.historyRow}>
+                      <span>{new Date(record.timestamp).toLocaleDateString()}</span>
+                      <span>{record.status === "markers" ? `${record.detectionLabels.length} marker${record.detectionLabels.length === 1 ? "" : "s"}` : record.status}</span>
+                    </div>
+                  ))}
+                </div>
+                <button style={styles.clearHistoryBtn} onClick={() => { setHistoryRecords([]); try { window.localStorage.removeItem(HISTORY_STORAGE_KEY); } catch {} }}>Delete history</button>
+              </>
+            )}
+          </details>
 
           <div style={styles.shortcutCard}>
             <p style={styles.shortcutTitle}>iOS Scan Shortcut</p>
@@ -709,7 +943,7 @@ export default function HealthScanApp() {
         return (
           <div style={styles.screen}>
             <div style={styles.cameraContainer}>
-              <video ref={videoRef} style={styles.video} playsInline autoPlay muted />
+              <video ref={videoRef} style={styles.video} playsInline autoPlay muted aria-label="Live camera view of the toilet bowl" />
               {/* Viewfinder corners */}
               <div style={styles.viewfinder}>
                 <div style={styles.corner("top-left")} />
@@ -762,9 +996,9 @@ export default function HealthScanApp() {
 
       {/* ── SCANNING ── */}
       {phase === "scanning" && (
-        <div style={styles.screen}>
+        <div style={styles.screen} role="status" aria-live="polite" aria-busy="true">
           <div style={styles.scanPreview}>
-            <img src={imageUrl} alt="scan" style={styles.previewImg} />
+            <img src={imageUrl} alt="Captured sample being analyzed" style={styles.previewImg} />
             <div style={styles.scanOverlay}>
               <div style={styles.scanLine} />
             </div>
@@ -784,14 +1018,27 @@ export default function HealthScanApp() {
             <span style={styles.resultsTitle}>Scan Results</span>
           </div>
           <div style={styles.resultImageWrap}>
-            <canvas ref={overlayCanvasRef} style={styles.resultCanvas} />
+            <canvas ref={overlayCanvasRef} style={styles.resultCanvas} role="img" aria-label="Captured scan with detected color markers highlighted" />
           </div>
 
-          {detections.length === 0 ? (
+          {analysisError ? (
+            <div style={styles.errorCard} role="alert">
+              <p style={styles.cleanTitle}>Scan unavailable</p>
+              <p style={styles.cleanSub}>{analysisError}</p>
+            </div>
+          ) : scanQuality.status === "inconclusive" ? (
+            <div style={styles.inconclusiveCard} role="status">
+              <div style={styles.inconclusiveIcon}>!</div>
+              <p style={styles.cleanTitle}>Inconclusive scan</p>
+              <p style={styles.cleanSub}>The image quality was not sufficient to interpret this scan reliably.</p>
+              <ul style={styles.reasonList}>{scanQuality.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+              <button style={styles.primaryBtn} onClick={retake}>Retake scan</button>
+            </div>
+          ) : detections.length === 0 ? (
             <div style={styles.cleanCard}>
               <div style={styles.cleanIcon}>✓</div>
-              <p style={styles.cleanTitle}>No blood detected</p>
-              <p style={styles.cleanSub}>No signs of blood were found in this scan. Continue monitoring regularly.</p>
+              <p style={styles.cleanTitle}>No blood-like markers detected</p>
+              <p style={styles.cleanSub}>This does not rule out blood or a medical condition. Repeat the scan if symptoms continue and speak with a healthcare professional.</p>
             </div>
           ) : (
             <>
@@ -805,9 +1052,17 @@ export default function HealthScanApp() {
               {/* Sample type */}
               <div style={styles.sampleType}>
                 <span style={styles.sampleLabel}>Sample type</span>
-                <span style={styles.sampleValue}>
-                  {sampleType === "both" ? "Urine + Stool" : sampleType === "urine" ? "Urine" : sampleType === "stool" ? "Stool" : "Unknown"}
-                </span>
+                <select
+                  value={sampleTypeOverride || sampleType}
+                  onChange={(event) => setSampleTypeOverride(event.target.value)}
+                  style={styles.sampleSelect}
+                  aria-label="Sample type"
+                >
+                  <option value="unknown">Unknown</option>
+                  <option value="urine">Urine</option>
+                  <option value="stool">Stool</option>
+                  <option value="both">Urine + stool</option>
+                </select>
               </div>
 
               {/* Detection list */}
@@ -834,7 +1089,7 @@ export default function HealthScanApp() {
                 <p style={styles.medicalTitle}>⚕️ What this may indicate</p>
                 <p style={styles.medicalText}>{SEVERITY_INFO[highestSeverity].desc}</p>
                 <p style={{ ...styles.medicalText, marginTop: 6, fontStyle: "italic", color: "#6b7280" }}>
-                  This tool is for screening only. Please consult a healthcare professional for proper diagnosis and treatment.
+                  This tool identifies color patterns only. It cannot confirm blood or diagnose a condition. Seek urgent care for severe symptoms.
                 </p>
               </div>
             </>
@@ -854,16 +1109,25 @@ export default function HealthScanApp() {
           {/* QR code */}
           <div style={styles.qrCard}>
             <div>
-              <p style={styles.qrTitle}>Open HealthScan on another device</p>
-              <p style={styles.qrSub}>Scan this QR code to open the app.</p>
+              <p style={styles.qrTitle}>Open the app on another device</p>
+              <p style={styles.qrSub}>This QR code contains the app link, not your scan.</p>
             </div>
             {qrDataUrl && <img src={qrDataUrl} alt="HealthScan QR" style={styles.qrImage} />}
           </div>
 
           <div style={styles.resultActions}>
-            <button style={styles.secondaryBtn} onClick={saveImage}>Save Image</button>
-            <button style={styles.primaryBtn} onClick={exportScanResults}>Export Scan Results</button>
+            <button style={styles.secondaryBtn} onClick={shareScan}>Share Image</button>
+            <button style={styles.primaryBtn} onClick={exportScanResults} disabled={isExporting}>
+              {isExporting ? "Creating PDF…" : "Export Scan Results"}
+            </button>
           </div>
+
+          <div style={styles.resultActions}>
+            <button style={styles.secondaryBtn} onClick={saveImage}>Save Image</button>
+            <button style={styles.ghostBtn} onClick={retake}>Retake Scan</button>
+          </div>
+
+          <p style={styles.scanMeta}>Scanned {scanTimestamp ? new Date(scanTimestamp).toLocaleString() : "just now"} · Sample type: {(sampleTypeOverride || sampleType) === "both" ? "Urine + stool" : (sampleTypeOverride || sampleType)}</p>
 
           <div style={styles.shortcutCard}>
             <p style={styles.shortcutTitle}>iOS Scan Shortcut</p>
@@ -904,6 +1168,18 @@ export default function HealthScanApp() {
         .fade-in {
           animation: fadeIn 0.4s ease;
         }
+        button:focus-visible, a:focus-visible, summary:focus-visible {
+          outline: 3px solid #93c5fd;
+          outline-offset: 3px;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+            scroll-behavior: auto !important;
+          }
+        }
       `}</style>
     </div>
   );
@@ -915,6 +1191,7 @@ const styles = {
     minHeight: "100vh", background: "#0f172a", color: "#f1f5f9",
     fontFamily: "'SF Pro Display', 'Segoe UI', system-ui, sans-serif",
     display: "flex", flexDirection: "column", alignItems: "center",
+    outline: "none",
   },
   toast: {
     position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)",
@@ -938,6 +1215,20 @@ const styles = {
     border: "1px solid #334155", width: "100%", boxSizing: "border-box",
   },
   infoText: { margin: 0, fontSize: 13.5, color: "#94a3b8", lineHeight: 1.6 },
+  errorCard: {
+    width: "100%", boxSizing: "border-box", background: "#451a1a", border: "1px solid #991b1b",
+    borderRadius: 12, padding: "12px 14px", color: "#fecaca", fontSize: 13, lineHeight: 1.5,
+  },
+  privacyDetails: {
+    width: "100%", boxSizing: "border-box", background: "#0f172a", border: "1px solid #334155",
+    borderRadius: 12, padding: "12px 14px", color: "#94a3b8",
+  },
+  privacySummary: { cursor: "pointer", color: "#e2e8f0", fontSize: 13, fontWeight: 600 },
+  privacyText: { margin: "10px 0 0", fontSize: 12, lineHeight: 1.55, color: "#94a3b8" },
+  historyToggle: { display: "flex", alignItems: "center", gap: 8, marginTop: 12, color: "#cbd5e1", fontSize: 12.5, lineHeight: 1.4 },
+  historyList: { display: "flex", flexDirection: "column", gap: 6, marginTop: 12 },
+  historyRow: { display: "flex", justifyContent: "space-between", gap: 12, color: "#94a3b8", fontSize: 11.5, borderTop: "1px solid #1e293b", paddingTop: 6 },
+  clearHistoryBtn: { marginTop: 12, background: "transparent", color: "#fca5a5", border: "1px solid #7f1d1d", borderRadius: 8, padding: "7px 10px", fontSize: 11.5, cursor: "pointer" },
 
   // BUTTONS
   primaryBtn: {
@@ -1022,6 +1313,13 @@ const styles = {
   cleanIcon: { fontSize: 36, color: "#22c55e", marginBottom: 8 },
   cleanTitle: { margin: 0, fontSize: 18, fontWeight: 600, color: "#f1f5f9" },
   cleanSub: { margin: "6px 0 0", fontSize: 13, color: "#64748b", lineHeight: 1.5 },
+  inconclusiveCard: {
+    background: "#422006", border: "1px solid #b45309", borderRadius: 16,
+    padding: "24px", textAlign: "center", width: "100%", boxSizing: "border-box",
+  },
+  inconclusiveIcon: { fontSize: 32, color: "#fbbf24", fontWeight: 700, marginBottom: 8 },
+  reasonList: { margin: "12px auto 18px", paddingLeft: 20, textAlign: "left", color: "#fcd34d", fontSize: 12.5, lineHeight: 1.6 },
+  scanMeta: { margin: 0, fontSize: 11.5, color: "#64748b", textAlign: "center", lineHeight: 1.5 },
 
   // DETECTIONS
   summaryBadge: {
@@ -1035,6 +1333,7 @@ const styles = {
   },
   sampleLabel: { textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 600, color: "#64748b", fontSize: 10 },
   sampleValue: { fontSize: 12.5, fontWeight: 600, color: "#e2e8f0" },
+  sampleSelect: { background: "#1e293b", color: "#e2e8f0", border: "1px solid #475569", borderRadius: 6, padding: "4px 6px", fontSize: 12, fontWeight: 600 },
   detectionList: { display: "flex", flexDirection: "column", gap: 8, width: "100%" },
   detectionCard: {
     display: "flex", alignItems: "center", gap: 12,

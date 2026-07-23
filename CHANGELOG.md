@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0 - 2026-07-23
+- Add scan-quality gating with inconclusive results for dark, glare-heavy, or low-detail images.
+- Move analysis into a testable module and Web Worker with scaled image processing.
+- Add photo upload fallback, retake flow, manual sample-type correction, and native image sharing.
+- Replace diagnostic-sounding result copy with screening-focused language and red-flag guidance.
+- Add privacy/limitations disclosure and optional summary-only local history.
+- Add accessible status messaging, focus handling, reduced-motion support, and result labels.
+- Lazy-load PDF/QR dependencies and improve service-worker update handling.
+- Add automated analysis tests and documentation for privacy and limitations.
+
 ## 1.1.0 - 2026-02-03
 - Limit blood analysis to the toilet bowl area to reduce false positives.
 - Detect urine/stool presence and handle mixed samples.

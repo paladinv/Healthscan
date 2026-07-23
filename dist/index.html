@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+
+    <!-- PWA viewport — prevent zoom, fit to device width -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+
+    <!-- PWA manifest link -->
+    <link rel="manifest" href="manifest.json" />
+
+    <!-- iOS PWA support (Safari ignores manifest for some of these) -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="icon-192.svg" />
+
+    <!-- Status-bar / address-bar colour on Android Chrome -->
+    <meta name="theme-color" content="#0f172a" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="icon-192.svg" />
+
+    <title>HealthScan</title>
+
+    <!-- Minimal global reset — the React component handles its own layout -->
+    <style>
+      *, *::before, *::after { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        /* Prevent iOS bounce / overscroll */
+        overflow: hidden;
+        -webkit-overflow-scrolling: touch;
+        /* Dark background matches the app root so there's no flash */
+        background: #0f172a;
+        /* Safe-area insets for notched phones */
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+      #root {
+        height: 100%;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+    </style>
+    <script type="module" crossorigin src="./assets/index-CxFUfqW_.js"></script>
+  </head>
+  <body>
+    <!-- React mounts here -->
+    <div id="root"></div>
+
+    <!-- Vite injects the JS bundle here at build time -->
+
+    <!-- Service-worker registration — runs after the page is interactive -->
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker
+            .register("./sw.js")
+            .then((reg) => {
+              console.log("[SW] Registered, scope:", reg.scope);
+
+              // If an updated SW is waiting, activate it immediately
+              if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
+              reg.onupdatefound = () => {
+                const next = reg.installing;
+                if (next) {
+                  next.onstatechange = () => {
+                    if (next.state === "installed" && navigator.serviceWorker.controller) {
+                      // New version available — reload to pick it up
+                      console.log("[SW] New version available, reloading…");
+                      window.location.reload();
+                    }
+                  };
+                }
+              };
+            })
+            .catch((err) => console.warn("[SW] Registration failed:", err));
+        });
+      }
+    </script>
+  </body>
+</html>
