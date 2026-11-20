@@ -1,4 +1,5 @@
 import { loadLanguagePreference, saveLanguagePreference } from "./preferences.js";
+import { TRANSLATION_REVIEW_REGISTRY, REGIONAL_RESOURCES, REQUIRED_URGENT_KEYS, validateTranslationRegistry } from "./translationRegistry.js";
 
 export const LANGUAGES = [
   { id: "en", label: "English" },
@@ -6,7 +7,7 @@ export const LANGUAGES = [
   { id: "fr", label: "Français (draft—clinician review required)" },
 ];
 
-const STRINGS = {
+export const STRINGS = {
   en: {
     appName: "HealthScan",
     homeSubtitle: "A private screening aid for blood-like colour markers in urine or stool",
@@ -193,6 +194,8 @@ export function createTranslator(language) {
   const selected = STRINGS[language] ? language : "en";
   return (key) => STRINGS[selected][key] ?? STRINGS.en[key] ?? key;
 }
+
+export { REGIONAL_RESOURCES, REQUIRED_URGENT_KEYS, TRANSLATION_REVIEW_REGISTRY, validateTranslationRegistry };
 
 export function useLanguagePreference(storage) {
   return loadLanguagePreference(storage);

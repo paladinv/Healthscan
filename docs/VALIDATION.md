@@ -34,12 +34,12 @@ Run the complete home → camera → capture/upload → results → export path 
 
 ## Secure-history decision
 
-The current optional history is summary-only and contains no images, but browser `localStorage` is not encrypted or protected by an app passcode. Before storing health-related history for a public release, replace it with an encrypted IndexedDB design:
+The optional history is summary-only and contains no images. It is stored in encrypted IndexedDB and protected by a passcode held only in memory while unlocked. Legacy plaintext history is migrated only after encrypted writes succeed, and reset deletes both stores after confirmation.
 
-1. Derive an in-memory AES-GCM key from a user-selected passcode using PBKDF2 with a per-device random salt.
-2. Store only encrypted records and random IVs in IndexedDB; never persist the passcode or derived key.
-3. Require the passcode once per app session and provide a clear warning that passcode reset deletes the encrypted history.
-4. Add migration and deletion flows for existing legacy storage, then have the design independently security-reviewed.
+1. The implementation derives an in-memory AES-GCM key from a user-selected passcode using PBKDF2 with a per-device random salt.
+2. It stores only encrypted records and random IVs in IndexedDB; the passcode and derived key are never persisted.
+3. It requires the passcode while the history is locked and provides a warning that reset deletes encrypted history.
+4. The implementation still requires an independent security review before public medical use.
 
 ## Photo-free quality feedback
 

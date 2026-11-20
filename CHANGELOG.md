@@ -1,7 +1,12 @@
 # Changelog
 
 ## Unreleased
-- Add secure-history, localization, accessibility-preference, camera-preflight, clinical-metrics, and release-check scaffolding for the next implementation pass.
+- Add stratified clinical and preflight metrics with quoted CSV parsing, Wilson intervals, and synthetic-only fixtures.
+- Make device and accessibility evidence validation fail closed on missing pass outcomes, tester metadata, supported platforms, or UTC ISO timestamps.
+- Add locale key coverage and clinician-review evidence checks; all current locales remain pending review.
+- Add strict offline telemetry aggregation with allowlisted fields and k=10 suppression by default.
+- Add deterministic initial-entry and analysis-worker gzip budgets to `release:check`.
+- Remove capability-only platform-authenticator status; history unlock is explicitly passcode-only.
 
 ## 1.2.2 - 2026-07-27
 - Replace the fixed capture region with an adjustable oval that is carried through worker and fallback analysis.

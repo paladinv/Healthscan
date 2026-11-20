@@ -6,6 +6,7 @@
     "security": { "status": "pending", "signedOff": false, "evidenceRef": "", "signedBy": "", "signedAt": "" },
     "accessibility": { "status": "pending", "signedOff": false, "evidenceRef": "", "signedBy": "", "signedAt": "" },
     "device": { "status": "pending", "signedOff": false, "evidenceRef": "", "signedBy": "", "signedAt": "" },
-    "performance": { "status": "pending", "signedOff": false, "evidenceRef": "", "signedBy": "", "signedAt": "" }
+    "performance": { "status": "pending", "signedOff": false, "evidenceRef": "", "signedBy": "", "signedAt": "" },
+    "locale-review": { "status": "pending", "signedOff": false, "evidenceRef": "", "signedBy": "", "signedAt": "" }
   }
 }

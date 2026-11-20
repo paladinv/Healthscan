@@ -1,17 +1,21 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "runs": [
-    { "platform": "ios-safari", "device": "REPLACE_WITH_DEVICE", "scenario": "allow", "outcome": "not-run", "notes": "" },
-    { "platform": "ios-safari", "device": "REPLACE_WITH_DEVICE", "scenario": "deny", "outcome": "not-run", "notes": "" },
-    { "platform": "ios-safari", "device": "REPLACE_WITH_DEVICE", "scenario": "revoke", "outcome": "not-run", "notes": "" },
-    { "platform": "ios-safari", "device": "REPLACE_WITH_DEVICE", "scenario": "background-resume", "outcome": "not-run", "notes": "" },
-    { "platform": "ios-safari", "device": "REPLACE_WITH_DEVICE", "scenario": "pwa-offline", "outcome": "not-run", "notes": "" },
-    { "platform": "ios-safari", "device": "REPLACE_WITH_DEVICE", "scenario": "photo-fallback", "outcome": "not-run", "notes": "" },
-    { "platform": "android-chrome", "device": "REPLACE_WITH_DEVICE", "scenario": "allow", "outcome": "not-run", "notes": "" },
-    { "platform": "android-chrome", "device": "REPLACE_WITH_DEVICE", "scenario": "deny", "outcome": "not-run", "notes": "" },
-    { "platform": "android-chrome", "device": "REPLACE_WITH_DEVICE", "scenario": "revoke", "outcome": "not-run", "notes": "" },
-    { "platform": "android-chrome", "device": "REPLACE_WITH_DEVICE", "scenario": "background-resume", "outcome": "not-run", "notes": "" },
-    { "platform": "android-chrome", "device": "REPLACE_WITH_DEVICE", "scenario": "pwa-offline", "outcome": "not-run", "notes": "" },
-    { "platform": "android-chrome", "device": "REPLACE_WITH_DEVICE", "scenario": "photo-fallback", "outcome": "not-run", "notes": "" }
+    { "platform": "ios-safari", "device": "REPLACE_WITH_DEVICE", "osVersion": "REPLACE_WITH_OS", "browserVersion": "REPLACE_WITH_BROWSER", "tester": "REPLACE_WITH_TESTER", "scenario": "allow", "outcome": "not-run", "evidenceRef": "", "signedBy": "", "signedAt": "" },
+    { "platform": "ios-safari", "device": "REPLACE_WITH_DEVICE", "osVersion": "REPLACE_WITH_OS", "browserVersion": "REPLACE_WITH_BROWSER", "tester": "REPLACE_WITH_TESTER", "scenario": "deny", "outcome": "not-run", "evidenceRef": "", "signedBy": "", "signedAt": "" },
+    { "platform": "ios-safari", "device": "REPLACE_WITH_DEVICE", "osVersion": "REPLACE_WITH_OS", "browserVersion": "REPLACE_WITH_BROWSER", "tester": "REPLACE_WITH_TESTER", "scenario": "revoke", "outcome": "not-run", "evidenceRef": "", "signedBy": "", "signedAt": "" },
+    { "platform": "ios-safari", "device": "REPLACE_WITH_DEVICE", "osVersion": "REPLACE_WITH_OS", "browserVersion": "REPLACE_WITH_BROWSER", "tester": "REPLACE_WITH_TESTER", "scenario": "background-resume", "outcome": "not-run", "evidenceRef": "", "signedBy": "", "signedAt": "" },
+    { "platform": "ios-safari", "device": "REPLACE_WITH_DEVICE", "osVersion": "REPLACE_WITH_OS", "browserVersion": "REPLACE_WITH_BROWSER", "tester": "REPLACE_WITH_TESTER", "scenario": "pwa-offline", "outcome": "not-run", "evidenceRef": "", "signedBy": "", "signedAt": "" },
+    { "platform": "ios-safari", "device": "REPLACE_WITH_DEVICE", "osVersion": "REPLACE_WITH_OS", "browserVersion": "REPLACE_WITH_BROWSER", "tester": "REPLACE_WITH_TESTER", "scenario": "photo-fallback", "outcome": "not-run", "evidenceRef": "", "signedBy": "", "signedAt": "" },
+    { "platform": "android-chrome", "device": "REPLACE_WITH_DEVICE", "osVersion": "REPLACE_WITH_OS", "browserVersion": "REPLACE_WITH_BROWSER", "tester": "REPLACE_WITH_TESTER", "scenario": "allow", "outcome": "not-run", "evidenceRef": "", "signedBy": "", "signedAt": "" },
+    { "platform": "android-chrome", "device": "REPLACE_WITH_DEVICE", "osVersion": "REPLACE_WITH_OS", "browserVersion": "REPLACE_WITH_BROWSER", "tester": "REPLACE_WITH_TESTER", "scenario": "deny", "outcome": "not-run", "evidenceRef": "", "signedBy": "", "signedAt": "" },
+    { "platform": "android-chrome", "device": "REPLACE_WITH_DEVICE", "osVersion": "REPLACE_WITH_OS", "browserVersion": "REPLACE_WITH_BROWSER", "tester": "REPLACE_WITH_TESTER", "scenario": "revoke", "outcome": "not-run", "evidenceRef": "", "signedBy": "", "signedAt": "" },
+    { "platform": "android-chrome", "device": "REPLACE_WITH_DEVICE", "osVersion": "REPLACE_WITH_OS", "browserVersion": "REPLACE_WITH_BROWSER", "tester": "REPLACE_WITH_TESTER", "scenario": "background-resume", "outcome": "not-run", "evidenceRef": "", "signedBy": "", "signedAt": "" },
+    { "platform": "android-chrome", "device": "REPLACE_WITH_DEVICE", "osVersion": "REPLACE_WITH_OS", "browserVersion": "REPLACE_WITH_BROWSER", "tester": "REPLACE_WITH_TESTER", "scenario": "pwa-offline", "outcome": "not-run", "evidenceRef": "", "signedBy": "", "signedAt": "" },
+    { "platform": "android-chrome", "device": "REPLACE_WITH_DEVICE", "osVersion": "REPLACE_WITH_OS", "browserVersion": "REPLACE_WITH_BROWSER", "tester": "REPLACE_WITH_TESTER", "scenario": "photo-fallback", "outcome": "not-run", "evidenceRef": "", "signedBy": "", "signedAt": "" }
+  ],
+  "accessibilityAudits": [
+    { "kind": "voiceover", "tester": "REPLACE_WITH_TESTER", "outcome": "not-run", "evidenceRef": "", "signedBy": "", "signedAt": "" },
+    { "kind": "talkback", "tester": "REPLACE_WITH_TESTER", "outcome": "not-run", "evidenceRef": "", "signedBy": "", "signedAt": "" }
   ]
 }

@@ -172,7 +172,7 @@ To bust the cache on a new deploy, bump `CACHE_NAME` in `public/sw.js`
 - HealthScan processes captured images locally in the browser. This app does not upload scan images to a server.
 - Saving, exporting, or sharing is an explicit device action and may copy the image outside the app.
 - Resetting a scan clears the in-memory app state. Files already downloaded or shared must be deleted separately from the device or destination.
-- Optional history stores summary metadata only—never raw images—and can be disabled and deleted from the home screen. It is not encrypted or protected with an app passcode.
+- Optional history stores summary metadata only—never raw images—and can be disabled and deleted from the home screen. It uses encrypted IndexedDB and a user passcode; passcode recovery is impossible if the passcode and separately protected backup passphrase are both lost.
 - The color-based screening logic can be affected by lighting, glare, camera differences, cleaning products, food coloring, and other visual factors. Do not use it to rule out illness or delay medical care.
 
 ---
@@ -182,9 +182,13 @@ To bust the cache on a new deploy, bump `CACHE_NAME` in `public/sw.js`
 ```bash
 npm test
 npm run build
+npm run performance:check
+npm run release:check
 ```
 
-The tests cover neutral images, a synthetic bright-red cluster, glare-driven inconclusive results, and caller-provided framing masks. Clinical validation, real-device camera testing, and an assistive-technology audit remain release gates; see [docs/VALIDATION.md](docs/VALIDATION.md).
+The tests cover neutral images, a synthetic bright-red cluster, glare-driven inconclusive results, caller-provided framing masks, and governance contracts. Metrics and evidence tools are intentionally fail-closed: `npm run clinical:metrics`, `npm run preflight:metrics`, `npm run device:evidence:check`, `npm run translation:check`, and `npm run release:gate` do not create clinician or device evidence. Clinical validation, real-device camera testing, and an assistive-technology audit remain release gates; see [docs/VALIDATION.md](docs/VALIDATION.md), [docs/CLINICAL_VALIDATION.md](docs/CLINICAL_VALIDATION.md), and [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
+
+`npm run telemetry:aggregate -- --input exported-telemetry.json --min-count 10` accepts only the allowlisted, photo-free local export format and emits suppressed aggregate cells. It performs no upload.
 
 ---
 

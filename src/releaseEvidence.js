@@ -1,4 +1,4 @@
-export const REQUIRED_RELEASE_GATES = ["clinical", "security", "accessibility", "device", "performance"];
+export const REQUIRED_RELEASE_GATES = ["clinical", "security", "accessibility", "device", "performance", "locale-review"];
 
 export function validateReleaseEvidence(value) {
   const failures = [];

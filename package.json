@@ -9,8 +9,12 @@
     "preview": "vite preview",
     "test": "node --test",
     "clinical:metrics": "node scripts/clinical-metrics.mjs",
+    "preflight:metrics": "node scripts/preflight-metrics.mjs",
     "device:evidence:check": "node scripts/device-evidence-check.mjs",
-    "release:check": "node scripts/release-check.mjs",
+    "translation:check": "node scripts/translation-check.mjs",
+    "telemetry:aggregate": "node scripts/telemetry-aggregate.mjs",
+    "performance:check": "node scripts/performance-check.mjs",
+    "release:check": "npm run build && node scripts/release-check.mjs",
     "release:gate": "node scripts/release-gate.mjs"
   },
   "dependencies": {

@@ -1,0 +1,5 @@
+case_id,clinician_quality,preflight_state,device_family,browser,lighting,toilet_material,sample_type,confounder
+EXAMPLE-PF-001,usable,ready,synthetic,synthetic,ok,ceramic,urine,none
+EXAMPLE-PF-002,unusable,ready,synthetic,synthetic,ok,ceramic,stool,glare
+EXAMPLE-PF-003,usable,blocked,synthetic,synthetic,dim,ceramic,urine,none
+EXAMPLE-PF-004,unusable,advisory,synthetic,synthetic,bright,plastic,mixed,cleaner

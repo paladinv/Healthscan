@@ -1,6 +1,6 @@
-case_id,actual,predicted,reviewer_a,reviewer_b,adjudicated
-EXAMPLE-001,positive,positive,positive,positive,positive
-EXAMPLE-002,positive,negative,positive,positive,positive
-EXAMPLE-003,negative,negative,negative,negative,negative
-EXAMPLE-004,negative,positive,negative,negative,negative
-EXAMPLE-005,positive,inconclusive,positive,positive,positive
+case_id,actual,predicted,reviewer_a,reviewer_b,adjudicated,device_family,browser,lighting,toilet_material,sample_type,confounder
+EXAMPLE-001,positive,positive,positive,positive,positive,synthetic,synthetic,synthetic,synthetic,urine,none
+EXAMPLE-002,positive,negative,positive,positive,positive,synthetic,synthetic,synthetic,synthetic,stool,none
+EXAMPLE-003,negative,negative,negative,negative,negative,synthetic,synthetic,synthetic,synthetic,urine,none
+EXAMPLE-004,negative,positive,negative,negative,negative,synthetic,synthetic,synthetic,synthetic,mixed,glare
+EXAMPLE-005,positive,inconclusive,positive,positive,positive,synthetic,synthetic,synthetic,synthetic,stool,none

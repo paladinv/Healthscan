@@ -12,7 +12,6 @@ export default function SettingsPanel(props) {
     setRecoveryMode, recoveryPassphrase, setRecoveryPassphrase, recoveryFile, setRecoveryFile,
     recoveryError, recoveryBusy, exportRecoveryBackup, importRecoveryBackup, telemetryOptIn,
     setTelemetryPreference, downloadTelemetry, refreshHistoryStatus } = props;
-  const [webAuthn, setWebAuthn] = useState({ reason: "Checking WebAuthn PRF capability…", prf: false, error: false });
   const [telemetryStatus, setTelemetryStatus] = useState({ loading: true, error: null });
 
   useEffect(() => {
@@ -21,7 +20,6 @@ export default function SettingsPanel(props) {
       props.setTelemetryPreferenceState?.(isTelemetryOptedIn(window.localStorage));
       setTelemetryStatus({ loading: false, error: null });
     }).catch(() => setTelemetryStatus({ loading: false, error: "Photo-free telemetry is unavailable in this browser. No events will be recorded." }));
-    import("./webauthn.js").then(({ detectWebAuthnPrfCapability }) => detectWebAuthnPrfCapability().then((result) => setWebAuthn({ ...result, error: false })).catch(() => setWebAuthn({ reason: "WebAuthn capability could not be checked. It is not an unlock method here.", prf: false, error: true }))).catch(() => setWebAuthn({ reason: "WebAuthn capability module could not load. It is not an unlock method here.", prf: false, error: true }));
   }, [refreshHistoryStatus]);
 
   const toggleTelemetry = async (enabled) => {
@@ -78,7 +76,7 @@ export default function SettingsPanel(props) {
       {historyResetPending && <div style={styles.confirmCard} role="alert"><p style={styles.privacyText}>{t("deleteConfirm")}</p><div style={styles.formActions}><button style={styles.clearHistoryBtn} onClick={confirmResetHistory} disabled={historyBusy}>{t("historyReset")}</button><button style={styles.ghostBtn} onClick={() => setHistoryResetPending(false)}>{t("cancel")}</button></div></div>}
       <label style={styles.preferenceRow}>Auto-lock timeout<select value={historyTimeoutMinutes} onChange={(event) => updateHistoryTimeout(event.target.value)} style={styles.preferenceSelect}>{TIMEOUTS.map((value) => <option key={value} value={value}>{value === 0 ? "Disabled" : `${value} minute${value === 1 ? "" : "s"}`}</option>)}</select></label>
       <p style={styles.privacyText}>The key and passcode are never stored. Hidden or idle history is cleared from memory.</p>
-      <p style={styles.privacyText} role={webAuthn.error ? "alert" : undefined}>WebAuthn status: {webAuthn.reason} It is not an unlock method here.</p>
+      <p style={styles.privacyText}>History unlock uses the passcode you set. No biometric unlock is enabled.</p>
       {historyUnlocked && <>
         <button style={styles.secondaryBtn} onClick={() => setRecoveryMode(recoveryMode === "closed" ? "export" : "closed")}>Backup / restore encrypted history</button>
         {recoveryMode !== "closed" && <div style={styles.historyForm}>
